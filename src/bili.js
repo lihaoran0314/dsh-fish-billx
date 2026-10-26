@@ -420,7 +420,7 @@ export async function crawlKeyword(
   keyword,
   { videos = 4, comments = 40, danmaku = 60, cookie = '', logger, onProgress, signal } = {},
 ) {
-  const log = (message) => logger?.info?.('[dsh-fish] ' + message);
+  const log = (message) => logger?.info?.('[dsh-fish-billx] ' + message);
   let list = [];
   try {
     list = await searchVideos(keyword, { limit: videos, cookie });

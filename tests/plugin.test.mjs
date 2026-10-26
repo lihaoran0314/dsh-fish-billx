@@ -13,7 +13,7 @@ import { createTools, resolveDataDir, assembleText, latestUserText } from '../sr
 
 /** A temp corpus directory that cleans itself up. */
 function tempDir(label) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), `dsh-fish-${label}-`));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), `dsh-fish-billx-${label}-`));
   test.after?.(() => fs.rmSync(dir, { recursive: true, force: true }));
   return dir;
 }
@@ -418,7 +418,7 @@ test('reading tools work through the registry surface', async () => {
   );
 
   const state = await tools.fish_state.execute({}, {});
-  assert.equal(state.id, 'dsh-fish');
+  assert.equal(state.id, 'dsh-fish-billx');
   assert.ok(fs.existsSync(state.dir));
 
   const knowledge = await tools.fish_knowledge.execute({}, {});
@@ -450,11 +450,11 @@ test('resolveDataDir honours explicit config, DSH_HOME, then the home directory'
   assert.equal(resolveDataDir({ dataDir: 'C:\\tmp\\corpus' }), path.resolve('C:\\tmp\\corpus'));
   assert.equal(
     resolveDataDir({}, { DSH_HOME: 'C:\\harness-home' }),
-    path.join(path.resolve('C:\\harness-home'), 'dsh-fish', 'corpus'),
+    path.join(path.resolve('C:\\harness-home'), 'dsh-fish-billx', 'corpus'),
   );
   assert.equal(
     resolveDataDir({}, { USERPROFILE: 'C:\\Users\\me' }),
-    path.join('C:\\Users\\me', '.dsh', 'dsh-fish', 'corpus'),
+    path.join('C:\\Users\\me', '.dsh', 'dsh-fish-billx', 'corpus'),
   );
 });
 
@@ -517,7 +517,7 @@ test('apply registers tools and appends the corpus section to the prompt', async
   const next = async () => ({ sections: [{ name: 'base', text: 'base prompt' }] });
   const assembled = await assemble.handler({ sections: [] }, { agent }, next);
   assert.equal(assembled.sections.length, 2);
-  assert.equal(assembled.sections[1].name, 'dsh-fish:corpus');
+  assert.equal(assembled.sections[1].name, 'dsh-fish-billx:corpus');
   assert.ok(assembled.sections[1].text.includes('梭哈'));
 
   // With no corpus yet, the hook must not add an empty section. This second

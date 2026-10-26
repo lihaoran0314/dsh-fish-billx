@@ -20,7 +20,7 @@ if (!key) {
   process.exit(1);
 }
 
-const dir = process.env.CORPUS_DIR || path.join(os.tmpdir(), 'dsh-fish-model');
+const dir = process.env.CORPUS_DIR || path.join(os.tmpdir(), 'dsh-fish-billx-model');
 const raw = loadRaw(dir);
 const item = raw.items[0];
 const user = composeChunks(item)[0];

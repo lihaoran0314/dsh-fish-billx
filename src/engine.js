@@ -13,7 +13,7 @@ import * as prompt from './prompt.js';
 import * as topics from './topics.js';
 
 export function createEngine({ dataDir, config = {}, logger = null } = {}) {
-  if (!dataDir) throw new Error('dsh-fish: dataDir is required');
+  if (!dataDir) throw new Error('dsh-fish-billx: dataDir is required');
   const dir = dataDir;
   const cfg = () => config || {};
   let job = null;
@@ -23,7 +23,7 @@ export function createEngine({ dataDir, config = {}, logger = null } = {}) {
       job.log.push(line);
       if (job.log.length > 80) job.log.shift();
     }
-    logger?.info?.('[dsh-fish] ' + line);
+    logger?.info?.('[dsh-fish-billx] ' + line);
   };
 
   /**
@@ -362,7 +362,7 @@ export function createEngine({ dataDir, config = {}, logger = null } = {}) {
     const s = store.summary(dir);
     const st = store.loadState(dir);
     return {
-      id: 'dsh-fish',
+      id: 'dsh-fish-billx',
       enabled: cfg().enabled !== false,
       promptEnabled: cfg().promptEnabled !== false,
       keywords: cfg().keywords || [],

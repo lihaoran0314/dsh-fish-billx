@@ -1,4 +1,4 @@
-# dsh-fish
+# dsh-fish-billx
 
 B 站语料学习插件 for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)。
 
@@ -19,16 +19,16 @@ B 站 ──→ raw.json ──→ knowledge.json ──→ 每轮系统提示�
 
 ```bash
 # 在 DSH profile 里装（会写进当前 profile 的 cordis.patch.yml）
-dsh plugin add dsh-fish
+dsh plugin add dsh-fish-billx
 ```
 
-或者手动：把这个仓库链进 profile 的 `package.json`，再在 `dsh.profile.bundles` 里加一项 `dsh-fish`。
+或者手动：把这个仓库链进 profile 的 `package.json`，再在 `dsh.profile.bundles` 里加一项 `dsh-fish-billx`。
 
 配置全部可选，写在 profile 的 `cordis.patch.yml`：
 
 ```yaml
-- id: dsh-fish
-  name: dsh-fish
+- id: dsh-fish-billx
+  name: dsh-fish-billx
   config:
     videosPerRun: 3        # 一轮抓几个视频
     commentsPerVideo: 40   # 每个视频留多少条高赞评论
@@ -39,7 +39,7 @@ dsh plugin add dsh-fish
     cookie: ""             # B 站 SESSDATA，不填按游客抓
 ```
 
-> 语料落在 `$DSH_HOME/dsh-fish/corpus/`（默认 `~/.dsh/dsh-fish/corpus/`），
+> 语料落在 `$DSH_HOME/dsh-fish-billx/corpus/`（默认 `~/.dsh/dsh-fish-billx/corpus/`），
 > 不在工作区里，换项目不会丢。想换位置就设 `config.dataDir`。
 
 ---
@@ -174,7 +174,7 @@ npm test        # 33 条，全部纯本地，不联网
 数据文件：
 
 ```
-~/.dsh/dsh-fish/corpus/
+~/.dsh/dsh-fish-billx/corpus/
 ├─ raw.json        # 抓到的视频（整篇材料），最多 300 条
 ├─ knowledge.json  # 7 类知识（v2）
 ├─ state.json      # 最近 30 次运行摘要

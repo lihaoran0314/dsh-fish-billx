@@ -1,5 +1,5 @@
 /**
- * dsh-fish -- a Bilibili corpus learner as a DeepSeek Harness plugin.
+ * dsh-fish-billx -- a Bilibili corpus learner as a DeepSeek Harness plugin.
  *
  * What it does in one pass:
  *   1. crawl  -- search Bilibili for a topic and keep each video's whole
@@ -27,10 +27,10 @@ import path from 'node:path';
 import { createEngine } from './engine.js';
 import * as store from './store.js';
 
-export const name = 'dsh-fish';
+export const name = 'dsh-fish-billx';
 export const inject = ['tools', 'systemPrompt'];
 
-const DEFAULT_DATA_SUBDIR = path.join('dsh-fish', 'corpus');
+const DEFAULT_DATA_SUBDIR = path.join('dsh-fish-billx', 'corpus');
 
 /**
  * Where the corpus lives. A configured `dataDir` wins; otherwise the harness
@@ -44,14 +44,14 @@ export function resolveDataDir(config, env = process.env) {
   if (configured) return path.join(path.resolve(configured), DEFAULT_DATA_SUBDIR);
   const home = env.USERPROFILE || env.HOME;
   if (home) return path.join(home, '.dsh', DEFAULT_DATA_SUBDIR);
-  return path.join(process.cwd(), '.dsh-fish', 'corpus');
+  return path.join(process.cwd(), '.dsh-fish-billx', 'corpus');
 }
 
 /** Fresh identifiers for plugin-authored model messages. */
 let messageSeq = 0;
 function newMessageId() {
   messageSeq += 1;
-  return `dsh-fish-${Date.now().toString(36)}-${messageSeq}`;
+  return `dsh-fish-billx-${Date.now().toString(36)}-${messageSeq}`;
 }
 
 /**
@@ -107,7 +107,7 @@ export function createCompletion(ctx, route = {}) {
         id: newMessageId(),
         role: 'user',
         content: Object.freeze([Object.freeze({ type: 'text', text: String(user ?? '') })]),
-        source: Object.freeze({ kind: 'dsh-fish' }),
+        source: Object.freeze({ kind: 'dsh-fish-billx' }),
       }),
     ];
     const chunks = [];
@@ -167,7 +167,7 @@ export function createTools(engine, getComplete) {
           useLlm: args.useLlm !== false,
           complete,
         });
-        if (!result.ok) throw new Error(result.error || 'dsh-fish: the run produced nothing');
+        if (!result.ok) throw new Error(result.error || 'dsh-fish-billx: the run produced nothing');
         return result;
       },
       presentCall: (args) => ({
@@ -199,7 +199,7 @@ export function createTools(engine, getComplete) {
           comments: args.comments,
           danmaku: args.danmaku,
         });
-        if (!result.ok) throw new Error(result.error || 'dsh-fish: the crawl produced nothing');
+        if (!result.ok) throw new Error(result.error || 'dsh-fish-billx: the crawl produced nothing');
         return result;
       },
     },
@@ -382,7 +382,7 @@ export async function apply(ctx, config = {}) {
           ...resolvedAssembly,
           sections: [
             ...resolvedAssembly.sections,
-            { name: 'dsh-fish:corpus', text: block, interpolate: false },
+            { name: 'dsh-fish-billx:corpus', text: block, interpolate: false },
           ],
         };
       } catch {
@@ -392,6 +392,6 @@ export async function apply(ctx, config = {}) {
     });
   }
 
-  ctx.logger?.info?.(`[dsh-fish] mounted, corpus at ${resolved.dataDir}`);
+  ctx.logger?.info?.(`[dsh-fish-billx] mounted, corpus at ${resolved.dataDir}`);
   return { engine };
 }

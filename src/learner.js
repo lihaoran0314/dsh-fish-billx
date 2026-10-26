@@ -469,18 +469,18 @@ export async function learnOne(item, { complete, logger } = {}) {
           // limitation, not an empty comment section -- say so instead of
           // silently recording "learned nothing".
           firstError = 'the model returned no text (it may have spent the whole token budget on reasoning)';
-          logger?.warn?.('[dsh-fish] ' + firstError);
+          logger?.warn?.('[dsh-fish-billx] ' + firstError);
           continue;
         }
         const parsed = parseLooseJson(text);
         if (!parsed) {
-          logger?.warn?.('[dsh-fish] model reply was not valid JSON; skipping this batch: ' + clip(text, 60));
+          logger?.warn?.('[dsh-fish-billx] model reply was not valid JSON; skipping this batch: ' + clip(text, 60));
           continue;
         }
         batches.push(sanitizeBatch(parsed));
       } catch (error) {
         firstError = String(error?.message || error);
-        logger?.warn?.('[dsh-fish] batch ' + (batches.length + 1) + ' extraction failed: ' + firstError);
+        logger?.warn?.('[dsh-fish-billx] batch ' + (batches.length + 1) + ' extraction failed: ' + firstError);
       }
     }
     if (batches.length) {
@@ -488,7 +488,7 @@ export async function learnOne(item, { complete, logger } = {}) {
       if (GROUPS.some((g) => merged[g].length)) {
         return { batch: merged, method: 'llm', chunks: chunks.length };
       }
-      logger?.warn?.('[dsh-fish] the model extracted nothing: ' + clip(item.title, 30));
+      logger?.warn?.('[dsh-fish-billx] the model extracted nothing: ' + clip(item.title, 30));
     }
     if (firstError) {
       return { batch: heuristicBatch(item), method: 'heuristic', chunks: chunks.length, error: firstError };

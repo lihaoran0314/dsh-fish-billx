@@ -1,8 +1,8 @@
 # Mount the Bilibili corpus learner into the current profile.
 # Every field is optional; the defaults below are the shipped behaviour.
 - insert:
-    - id: dsh-fish
-      name: dsh-fish
+    - id: dsh-fish-billx
+      name: dsh-fish-billx
       config:
         # How many videos one run crawls, and how much of each video it keeps.
         videosPerRun: 3

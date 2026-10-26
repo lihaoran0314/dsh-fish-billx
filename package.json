@@ -1,5 +1,5 @@
 {
-  "name": "dsh-fish",
+  "name": "dsh-fish-billx",
   "version": "0.1.0",
   "description": "Learn how a comment section actually talks: crawl Bilibili material, distil it into seven kinds of knowledge, and feed the useful parts back into the prompt.",
   "type": "module",
@@ -26,12 +26,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/lihaoran0314/dsh-fish.git"
+    "url": "git+https://github.com/lihaoran0314/dsh-fish-billx.git"
   },
   "bugs": {
-    "url": "https://github.com/lihaoran0314/dsh-fish/issues"
+    "url": "https://github.com/lihaoran0314/dsh-fish-billx/issues"
   },
-  "homepage": "https://github.com/lihaoran0314/dsh-fish#readme",
+  "homepage": "https://github.com/lihaoran0314/dsh-fish-billx#readme",
   "engines": {
     "node": ">=22"
   },
