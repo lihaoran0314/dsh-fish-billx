@@ -1,0 +1,6 @@
+Publish the parity check and keep local helpers out of git
+
+check-published.mjs compares every tracked file against the published tree by
+blob sha, so "the push succeeded" cannot be confused with "GitHub has these
+bytes". It immediately caught two things the push itself hid: a temp file that had
+been published by mistake, and a .gitignore edit that never left this machine.
