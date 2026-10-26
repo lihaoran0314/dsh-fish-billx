@@ -1,0 +1,50 @@
+{
+  "name": "dsh-fish",
+  "version": "0.1.0",
+  "description": "Learn how a comment section actually talks: crawl Bilibili material, distil it into seven kinds of knowledge, and feed the useful parts back into the prompt.",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "bilibili",
+    "corpus",
+    "prompt"
+  ],
+  "author": "lihaoran0314",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lihaoran0314/dsh-fish.git"
+  },
+  "bugs": {
+    "url": "https://github.com/lihaoran0314/dsh-fish/issues"
+  },
+  "homepage": "https://github.com/lihaoran0314/dsh-fish#readme",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "test:one": "node tests/plugin.test.mjs",
+    "probe:model": "node scripts/probe-model.mjs",
+    "probe:budget": "node scripts/probe-budget.mjs",
+    "probe:learn": "node scripts/probe-learn.mjs"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

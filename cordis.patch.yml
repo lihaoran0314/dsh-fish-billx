@@ -1,0 +1,19 @@
+# Mount the Bilibili corpus learner into the current profile.
+# Every field is optional; the defaults below are the shipped behaviour.
+- insert:
+    - id: dsh-fish
+      name: dsh-fish
+      config:
+        # How many videos one run crawls, and how much of each video it keeps.
+        videosPerRun: 3
+        commentsPerVideo: 40
+        danmakuPerVideo: 60
+        # Feed the learned knowledge back into the system prompt per turn.
+        promptEnabled: true
+        promptBudget: 900
+        # Restrict what gets crawled to a fixed keyword list.
+        # Leave empty to take the topic from the user's latest message.
+        keywords: []
+        # Bilibili SESSDATA (or a full Cookie header) for AI-subtitle and
+        # higher-rate-limit access. Leave empty to crawl as a guest.
+        cookie: ""
