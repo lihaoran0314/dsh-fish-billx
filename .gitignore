@@ -3,3 +3,7 @@ node_modules/
 .DS_Store
 .corpus-test/
 data/
+
+# local-only publish helper (uses the GitHub API when git transport is blocked)
+scripts/api-publish.mjs
+
