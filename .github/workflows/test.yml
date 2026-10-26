@@ -1,0 +1,26 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      # The plugin has no runtime dependencies: these tests must pass on a bare
+      # checkout, which is also what a user installing it gets.
+      - name: Run the suite
+        run: node --test tests/*.test.mjs
+      - name: Fail if a credential slipped into the tree
+        run: node scripts/check-secrets.mjs
