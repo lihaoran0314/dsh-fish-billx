@@ -114,30 +114,59 @@ ASMR / 擦边 / 成人向的材料**整条不抓、不学**（标题、简介、
 
 ---
 
-## 五、关于模型：一个真实限制
+## 五、关于模型：预算，不是模型挑食
 
-提炼走 DSH 自己的 `ctx.llm`，不额外要 Key。**但模型选型会决定学不学得动。**
+提炼走 DSH 自己的 `ctx.llm`，不额外要 Key。**早期版本的结论「只有一个模型能跑」是错的**，
+原因是请求太紧，不是模型不行。三个连锁问题，都已修复。
 
-实测（2026-10，同一个 3200 字中文长文提炼任务）：
+### 1. token 预算给少了（真凶）
+
+推理型模型会先把预算烧在思考上，**烧完就返回空内容**（`finish_reason: length`，`content` 为空）。
+把预算固定成 3000 时，同一份 3200 字材料、同一个提示词：
+
+| 模型 | 3000 | 8000 | 12000 |
+| --- | --- | --- | --- |
+| `deepseek-v4.1-flash` | ❌ 空 | ❌ 空 | ✅ 推理 6534 后正常输出 |
+| `deepseek-v4-pro` | ❌ 空 | ❌ 空 | ✅ 推理 8692 后正常输出 |
+| `glm-5.3-flash` | ✅ 推理 2518 | ✅ | ✅ |
+| `kimi-k2.7-code` | ✅ 但见下面第 2 条 | ✅ | ✅ |
+
+所以 `EXTRACT_MAX_TOKENS` 定在 **12000**。另外试过 `reasoning_effort=low/minimal`、
+`enable_thinking=false` —— 在这个网关上全被忽略，推理量反而升到 8700 左右。
+**只有加预算有效**，所以加预算。
+
+### 2. `[batch 1/2]` 这个标签会骗模型等下文
+
+kimi 看到分批标签就只回一句「请继续发送 batch 2/2」，抽到 0 条，**但这依然是合法 JSON**。
+现在每次调用都明确告诉模型「这就是全部输入，不要再等，立刻输出 JSON」。改完 kimi 从 0 条变 37 条。
+
+### 3. 合法但空的 JSON 不能当成「这里没内容」
+
+`{"memes":[], ...}` 解析得过，看起来像成功。现在判成功看**实际条目数**，为 0 就抬到
+24000 预算重试一次；还不行才退回本地统计，并在 `error` 里说清原因。
+
+修完之后，同一份材料实测：
 
 | 模型 | 结果 |
 | --- | --- |
-| `glm-5.3-flash` | ✅ 正常输出 JSON，7 类都抽得到 |
-| `deepseek-v4.1-flash` | ❌ `finish=length`，推理把 token 预算烧光，`content` 为空 |
-| `deepseek-v4-pro` | ❌ 同上 |
-| `kimi-k2.7-code` | ❌ 只回一句「请继续发送 batch 2/2」 |
+| `deepseek-v4.1-flash` | ✅ 38 条（7 类全中） |
+| `glm-5.3-flash` | ✅ 34 条 |
+| `kimi-k2.7-code` | ✅ 37 条 |
 
-所以：**长文档提炼要挑一个会先给结论的模型**。遇到「模型返回空」，插件会
-记一条 `error` 说明原因并退回本地统计，而不是假装学到了东西 ——
-`fish_state` 和日志里能看到 `method` 是 `llm` 还是 `heuristic`。
+代价是慢：一次提炼 90–125 秒（推理本身就要几十秒）。抓一个视频换这个质量，值。
 
-仓库里带三个探测脚本，换模型/换网关时先跑一遍：
+`fish_state` 和日志里始终能看到 `method` 是 `llm` 还是 `heuristic`，
+以及失败时到底卡在哪一步。
+
+仓库里带探测脚本，换模型/换网关时先跑一遍：
 
 ```bash
-node scripts/probe-model.mjs     # 这个网关通不通
-node scripts/probe-budget.mjs    # token 预算够不够
-node scripts/probe-learn.mjs     # 拿真实语料跑一遍长文档提炼
-node scripts/probe-reasoning.mjs # 换各种开关，看有没有一种能让它开口
+node scripts/probe-model.mjs      # 这个网关通不通
+node scripts/probe-budget.mjs     # 小任务下预算是否正常
+node scripts/probe-learn.mjs      # 拿真实语料跑长文档提炼
+node scripts/probe-matrix.mjs     # 模型 × 预算矩阵，找最小可用预算
+node scripts/diagnose-model.mjs   # 逐项隔离：输入长度 / 输出复杂度 / 预算
+node scripts/probe-verify.mjs     # 端到端跑 learnOne，看真实落库条数
 ```
 
 没有模型也能用：`fish_learn({useLlm:false})` 走本地统计（重复出现的说法 = 梗，

@@ -150,6 +150,88 @@ test('learnOne reports an empty model reply as a reason, not a silent no-op', as
   assert.match(result.error, /no text/i, 'the caller is told why the model path failed');
 });
 
+test('the extraction budget is large enough for reasoning models', () => {
+  // Measured: deepseek-v4.1-flash and deepseek-v4-pro need >8000 tokens of
+  // deliberation before writing anything on a ~3.2k-character document.
+  assert.ok(
+    learner.EXTRACT_MAX_TOKENS >= 10000,
+    `budget ${learner.EXTRACT_MAX_TOKENS} is below the measured reasoning overhead`,
+  );
+});
+
+test('valid-but-empty JSON is retried, not accepted as "nothing here"', async () => {
+  const calls = [];
+  const result = await learner.learnOne(VIDEO, {
+    complete: async ({ maxTokens }) => {
+      calls.push(maxTokens);
+      // First call: schema-valid but every array empty. Second: real content.
+      if (calls.length === 1) return JSON.stringify({ summary: 'nothing', memes: [], love: [] });
+      return JSON.stringify({
+        summary: 'real',
+        memes: [{ term: '梭哈', meaning: 'all in', example: '梭哈是一种智慧' }],
+      });
+    },
+  });
+  assert.equal(calls.length, 2, 'an empty reply earns exactly one retry');
+  assert.ok(calls[1] > calls[0], 'the retry raises the budget');
+  assert.equal(result.method, 'llm');
+  assert.ok(result.batch.memes.length > 0, 'the retry content is what gets stored');
+});
+
+test('a batch is presented as complete material, never as one awaiting more', () => {
+  for (const chunk of learner.composeChunks(VIDEO)) {
+    assert.ok(/complete input|part \d+ of \d+/.test(chunk), 'the batch says what it is');
+    assert.ok(!/batch 1\/\d/.test(chunk), 'no label that reads like an unfinished request');
+    assert.ok(/do not ask for the rest|Answer with the JSON object now/i.test(chunk));
+  }
+});
+
+test('an HTML error page from the gateway is not mistaken for a model reply', () => {
+  assert.equal(learner.parseLooseJson('<!DOCTYPE html><html><body>502</body></html>'), null);
+  assert.equal(learner.parseLooseJson('<html><head></head></html>'), null);
+  // A JSON reply that merely starts with a brace still parses.
+  assert.equal(learner.parseLooseJson('{"memes":[{"term":"x"}]}').memes.length, 1);
+});
+
+test('a truncated reply is recovered without spending a second call', async () => {
+  // The per-category rescue already salvages a closed `memes` object out of a
+  // reply that broke off mid-document, so the continuation call must NOT be
+  // made: fewer model calls for the same knowledge.
+  const cut = '{"summary":"s","memes":[{"term":"省流","meaning":"summary","example":"省流：结论"}]';
+  let calls = 0;
+  const result = await learner.learnOne(
+    { ...VIDEO, comments: [{ text: '省流：结论', like: 5, replies: [] }], danmaku: [] },
+    {
+      complete: async () => {
+        calls++;
+        return cut;
+      },
+    },
+  );
+  assert.equal(result.method, 'llm');
+  assert.ok(result.batch.memes.some((m) => m.term === '省流'), 'recovered memes are kept');
+  assert.equal(calls, 1, 'no second call when the rescue already found entries');
+});
+
+test('an unparseable reply with no rescue triggers a continuation call', async () => {
+  let sawContinuation = false;
+  const result = await learner.learnOne(
+    { ...VIDEO, comments: [{ text: '好耶', like: 3, replies: [] }], danmaku: [] },
+    {
+      complete: async ({ system }) => {
+        if (/cut off/i.test(system)) {
+          sawContinuation = true;
+          return '{"summary":"s","memes":[{"term":"好耶","meaning":"yay"}]}';
+        }
+        return 'I am sorry, I cannot help with that request.'; // no JSON at all
+      },
+    },
+  );
+  assert.ok(sawContinuation, 'it asks for the tail when nothing was salvageable');
+  assert.equal(result.method, 'llm');
+  assert.ok(result.batch.memes.length > 0);
+});
+
 test('learnOne uses the model when it answers with JSON', async () => {
   const result = await learner.learnOne(VIDEO, {
     complete: async () =>

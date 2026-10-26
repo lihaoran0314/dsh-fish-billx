@@ -322,8 +322,15 @@ export function createEngine({ dataDir, config = {}, logger = null } = {}) {
     }
     const knowledge = store.loadKnowledge(dir);
     const p = learner.buildCoinPrompt(kw, knowledge, { count });
-    const text = await complete({ ...p, maxTokens: 700 });
-    const items = learner.parseCoin(text);
+    // Same trap as extraction: a reasoning model spends the budget thinking and
+    // returns empty content. Coining one short list is far cheaper than reading a
+    // document, but 700 was still below the deliberation floor.
+    const text = await complete({ ...p, maxTokens: learner.COIN_MAX_TOKENS });
+    let items = learner.parseCoin(text);
+    if (!items.length) {
+      const retry = await complete({ ...p, maxTokens: learner.COIN_MAX_TOKENS * 2 });
+      items = learner.parseCoin(retry);
+    }
     if (!items.length) {
       return { ok: false, error: 'the model produced nothing usable (reply was not valid JSON)', items: [] };
     }

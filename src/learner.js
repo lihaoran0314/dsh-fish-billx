@@ -119,7 +119,19 @@ export function blocksFor(item) {
   return blocks;
 }
 
-/** Pack blocks into batches by character budget. Nothing is truncated, only batched. */
+/**
+ * Tell the model that the material it holds is the *complete* document, even
+ * when it arrived in several batches.
+ *
+ * The earlier "[whole material, batch 1/2]" label read like a request in
+ * progress: one model answered a whole-prompt extraction with "please send
+ * batch 2/2" and zero entries, which parses as valid JSON and looks like
+ * success. Each batch is now presented as a self-contained part of the same
+ * material with nothing to wait for.
+ */
+const BATCH_NOTE =
+  'The material below is the complete input for this call. Do not wait for further batches, ' +
+  'do not ask for the rest of the document, and do not restate the task. Answer with the JSON object now.';
 export function composeChunks(item, { maxChars = 3200, maxChunks = 3 } = {}) {
   const blocks = blocksFor(item);
   const chunks = [];
@@ -134,9 +146,10 @@ export function composeChunks(item, { maxChars = 3200, maxChunks = 3 } = {}) {
   }
   if (current && chunks.length < maxChunks) chunks.push(current);
   if (!chunks.length) chunks.push(clip(item.title || '', 60));
-  return chunks.map((c, i) =>
-    chunks.length > 1 ? `[whole material, batch ${i + 1}/${chunks.length}]\n${c}` : c,
-  );
+  return chunks.map((c, i) => {
+    if (chunks.length === 1) return `${BATCH_NOTE}\n\n${c}`;
+    return `[part ${i + 1} of ${chunks.length} of one document; the other parts are handled in separate calls]\n${c}\n\n${BATCH_NOTE}`;
+  });
 }
 
 /** Compatibility: one-batch view of the same material. */
@@ -150,6 +163,9 @@ export function composeInput(item) {
  */
 export function parseLooseJson(text) {
   let s = String(text || '').trim();
+  // A gateway can answer 200 OK with an HTML error page. Treat that as "no
+  // reply" instead of scanning the page for braces and inventing a result.
+  if (/^<!doctype\s+html|^<html[\s>]/i.test(s)) return null;
   s = s
     .replace(/^```(?:json)?/i, '')
     .replace(/```$/, '')
@@ -448,6 +464,69 @@ export function batchCounts(batch) {
 }
 
 /**
+ * Default completion budget for one extraction call.
+ *
+ * This is not a guess. Measured on one 3.2k-character real document, reasoning
+ * models spend 5.5k-8.7k tokens thinking before writing a single character, and
+ * with a tight ceiling they return finish_reason "length" with empty content:
+ *
+ *   deepseek-v4.1-flash  failed at 3000 and 6000, succeeded at 10000 and 12000
+ *   deepseek-v4-pro      failed at 3000 and 8000, succeeded at 12000
+ *   glm-5.3-flash        succeeded at 3000 (it thinks less: ~2.5k)
+ *   kimi-k2.7-code       small budget was enough, but see BATCH_NOTE below
+ *
+ * Lowering reasoning effort is NOT a reliable lever here: on the gateway used
+ * for these runs, reasoning_effort=low/minimal and enable_thinking=false were
+ * ignored and deliberation went *up*. Only the budget helped, so the budget is
+ * what we raise, and the retry below exists for models that need more still.
+ */
+export const EXTRACT_MAX_TOKENS = 12000;
+const RETRY_MAX_TOKENS = 24000;
+
+/**
+ * Coining budget. Coining is a short task (one JSON array of a few sayings), so
+ * it needs far less than extraction, but the reasoning floor is still well above
+ * the 700 tokens this used to request -- that produced empty replies from
+ * reasoning models while looking like "the model had no idea".
+ */
+export const COIN_MAX_TOKENS = 4000;
+
+/**
+ * Whether the model actually produced knowledge. Valid JSON alone is not enough:
+ * one model answers a whole-prompt extraction with `{"memes":[], ...}` or with
+ * "please send batch 2", which parses fine and carries nothing.
+ */
+export function batchItemCount(batch) {
+  if (!batch) return 0;
+  return GROUPS.reduce((n, g) => n + (Array.isArray(batch[g]) ? batch[g].length : 0), 0);
+}
+
+/**
+ * Ask for a continuation when a reply was cut off mid-JSON, and stitch the
+ * answer back on. Recovered items are worth keeping: a truncated extraction
+ * usually already contains several complete entries before it breaks.
+ */
+async function continueTruncated({ complete, text, logger }) {
+  try {
+    const tail = text.slice(-600);
+    const reply = await complete({
+      system:
+        'You are completing a JSON document that was cut off. Continue it from exactly where it stops. ' +
+        'Output only the remaining characters: no repetition, no explanation, no code fence. ' +
+        'Close any open brackets and braces so the result is valid JSON.',
+      user: 'The JSON so far ends with:\n' + tail,
+      maxTokens: 3000,
+    });
+    if (!reply) return null;
+    const joined = text + reply.replace(/^\s*```(?:json)?\s*/i, '').replace(/```\s*$/, '');
+    return parseLooseJson(joined);
+  } catch (error) {
+    logger?.warn?.('[dsh-fish-billx] continuation failed: ' + String(error?.message || error));
+    return null;
+  }
+}
+
+/**
  * Learn one video (whole document, read in batches).
  * @param {object} item crawled video material.
  * @param {{complete?:Function, logger?:object}} opts `complete` is a
@@ -462,7 +541,7 @@ export async function learnOne(item, { complete, logger } = {}) {
     let firstError = '';
     for (const chunk of chunks) {
       try {
-        const text = await complete({ system: SYSTEM, user: chunk, maxTokens: 3000 });
+        const text = await complete({ system: SYSTEM, user: chunk, maxTokens: EXTRACT_MAX_TOKENS });
         if (!text) {
           // Some reasoning models spend the entire completion budget thinking and
           // return finish_reason "length" with empty content. That is a provider
@@ -472,12 +551,40 @@ export async function learnOne(item, { complete, logger } = {}) {
           logger?.warn?.('[dsh-fish-billx] ' + firstError);
           continue;
         }
-        const parsed = parseLooseJson(text);
+        let parsed = parseLooseJson(text);
         if (!parsed) {
-          logger?.warn?.('[dsh-fish-billx] model reply was not valid JSON; skipping this batch: ' + clip(text, 60));
-          continue;
+          // A reply that stops mid-object still holds usable entries, so try to
+          // finish it before giving up on this batch.
+          const recovered = await continueTruncated({ complete, text, logger });
+          if (recovered) {
+            parsed = recovered;
+            logger?.info?.('[dsh-fish-billx] recovered a truncated reply by asking it to continue');
+          } else {
+            logger?.warn?.('[dsh-fish-billx] model reply was not valid JSON; skipping this batch: ' + clip(text, 60));
+            continue;
+          }
         }
-        batches.push(sanitizeBatch(parsed));
+        let cleaned = sanitizeBatch(parsed);
+        if (batchItemCount(cleaned) === 0) {
+          // Valid JSON with nothing in it is the most deceptive failure: it looks
+          // like the comment section had no slang. Give the model one more chance
+          // with a much larger ceiling before believing that.
+          const retryText = await complete({ system: SYSTEM, user: chunk, maxTokens: RETRY_MAX_TOKENS });
+          const retryParsed = retryText ? parseLooseJson(retryText) : null;
+          if (retryParsed) {
+            cleaned = sanitizeBatch(retryParsed);
+            if (batchItemCount(cleaned) > 0) {
+              logger?.info?.('[dsh-fish-billx] an empty reply was retried with a larger budget and produced entries');
+            }
+          }
+          if (batchItemCount(cleaned) === 0) {
+            firstError =
+              'the model replied with empty categories; this is not proof the comment section had nothing, ' +
+              'so the run also stores local statistics';
+            logger?.warn?.('[dsh-fish-billx] ' + firstError);
+          }
+        }
+        batches.push(cleaned);
       } catch (error) {
         firstError = String(error?.message || error);
         logger?.warn?.('[dsh-fish-billx] batch ' + (batches.length + 1) + ' extraction failed: ' + firstError);
